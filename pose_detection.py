@@ -1,49 +1,125 @@
+import sys
 import cv2
 import mediapipe as mp
 from utils.angles import calculate_angle
 from rep_counter import RepCounter
+from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushButton
+from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QTimer
 
+# initialize mediaPipe pose
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-mp_drawing = mp.solutions.drawing_utils  # For drawing landmarks
 
+# initialze RepCounters
+left_counter = RepCounter()
+right_counter = RepCounter()
 
-cap = cv2.VideoCapture(0)
-counter = RepCounter()
-counter2 = RepCounter()
+class WorkoutApp(QWidget):
+    def __init__(self):
+        super().__init__()
 
+        # initialize the webcam
+        self.cap = cv2.VideoCapture(0)
 
-while cap.isOpened():
-    success, frame = cap.read()
-    if not success:
-        break
+        # main layout
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
 
-    # Convert frame to RGB (MediaPipe requires RGB)
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(frame_rgb)
+        self.video_label = QLabel("Webcam Feed")
+        self.video_label.setFixedSize(640, 480)
+        self.layout.addWidget(self.video_label)
 
-    # Inside the loop:
-    if results.pose_landmarks:
-        landmarks = results.pose_landmarks.landmark
-        shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER]
-        elbow = landmarks[mp_pose.PoseLandmark.LEFT_ELBOW]
-        wrist = landmarks[mp_pose.PoseLandmark.LEFT_WRIST]
+        # counter texts
+        self.left_rep_label = QLabel("Left Reps: 0")
+        self.right_rep_label = QLabel("Right Reps: 0")
+        self.layout.addWidget(self.left_rep_label)
+        self.layout.addWidget(self.right_rep_label)
 
-        landmarks2 = results.pose_landmarks.landmark
-        shoulder2 = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER]
-        elbow2 = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW]
-        wrist2 = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
+        # start/stop buttons
+        self.start_button = QPushButton("Start")
+        self.start_button.clicked.connect(self.toggle_webcam)
+        self.layout.addWidget(self.start_button)
 
-        angle = calculate_angle(shoulder, elbow, wrist)
-        angle2 = calculate_angle(shoulder2, elbow2, wrist2)
-        reps = counter.update(angle)
-        reps2 = counter2.update(angle2)
-        cv2.putText(frame, f"Left Reps: {reps}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(frame, f"Right Reps: {reps2}", (380, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
 
-    cv2.imshow("Pose Detection", frame)
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+        self.is_running = False
 
-cap.release()
-cv2.destroyAllWindows()
+        self.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                color: white;
+                background-color: #333;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QPushButton {
+                font-size: 16px;
+                background-color: #4CAF50;
+                color: white;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+
+    def toggle_webcam(self):
+        if self.is_running:
+            self.timer.stop()
+            self.start_button.setText("Start")
+            self.is_running = False
+        else:
+            self.timer.start(30)  # Update every 30ms
+            self.start_button.setText("Stop")
+            self.is_running = True
+
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            return
+
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(frame_rgb)
+
+        if results.pose_landmarks:
+            landmarks = results.pose_landmarks.landmark
+
+            # calculate angles
+            left_angle = calculate_angle(
+                landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER],
+                landmarks[mp_pose.PoseLandmark.LEFT_ELBOW],
+                landmarks[mp_pose.PoseLandmark.LEFT_WRIST]
+            )
+            right_angle = calculate_angle(
+                landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER],
+                landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW],
+                landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
+            )
+
+            left_reps = left_counter.update(left_angle)
+            right_reps = right_counter.update(right_angle)
+
+            # update the texts
+            self.left_rep_label.setText(f"Left Reps: {left_reps}")
+            self.right_rep_label.setText(f"Right Reps: {right_reps}")
+
+        h, w, ch = frame.shape
+        bytes_per_line = ch * w
+        qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        self.video_label.setPixmap(QPixmap.fromImage(qt_image))
+
+    def closeEvent(self, event):
+        self.cap.release()
+        event.accept()
+
+# run the application
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = WorkoutApp()
+    window.setWindowTitle("Workout Tracker")
+    window.show()
+    sys.exit(app.exec())
