@@ -1,13 +1,17 @@
 class RepCounter:
-    def __init__(self, threshold=30):
-        self.threshold = threshold
+    def __init__(self, contraction_threshold=30, extension_threshold=160):
+        self.contraction_threshold = contraction_threshold
+        self.extension_threshold = extension_threshold
         self.reps = 0
-        self.is_contracted = False
+        self.state = "extended"
 
     def update(self, angle):
-        if angle < self.threshold and not self.is_contracted:
-            self.reps += 1
-            self.is_contracted = True
-        elif angle > 160 and self.is_contracted:
-            self.is_contracted = False
+        if self.state == "extended":
+            if angle < self.contraction_threshold:
+                self.state = "contracted"
+        elif self.state == "contracted":
+            if angle > self.extension_threshold:
+                self.state = "extended"
+                self.reps += 1
+                print("count", self.reps)
         return self.reps
