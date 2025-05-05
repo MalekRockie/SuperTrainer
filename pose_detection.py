@@ -9,6 +9,8 @@ from PySide6.QtCore import QTimer
 
 # initialize mediaPipe pose
 mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
+drawing_spec = mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=2)
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 # initialze RepCounters
@@ -86,6 +88,14 @@ class WorkoutApp(QWidget):
         results = pose.process(frame_rgb)
 
         if results.pose_landmarks:
+            mp_drawing.draw_landmarks(
+                image=frame,
+                landmark_list=results.pose_landmarks,
+                connections=mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=drawing_spec,
+                connection_drawing_spec=drawing_spec
+            )
+
             landmarks = results.pose_landmarks.landmark
 
             # calculate angles
