@@ -1,0 +1,26 @@
+feat: restructure project into modular architecture with exercise extensibility
+
+This commit reorganizes the codebase from a monolithic implementation to a modular system, enabling support for multiple exercise types. Key changes:
+
+* Introduced proper separation of concerns with MVC-like architecture:
+  - `controllers/` for business logic
+  - `models/` for data structures and tracking
+  - `views/` for UI components
+* Implemented dynamic exercise configuration system:
+  - Exercise definitions moved to `models/exercises.py`
+  - Configurable angle thresholds and body sides
+  - Support for unilateral/bilateral movements
+* Created abstracted processing pipeline:
+  - Generic pose detection in `PoseDetector`
+  - Stateful rep counting in `RepCounter`
+  - Dynamic joint angle calculation
+* Added new exercise types:
+  - Squats (lower body tracking)
+  - Shoulder presses (vertical movement)
+  - Push-ups (horizontal plane motion)
+* Improved maintainability:
+  - Clear file responsibilities
+  - Type hints for critical interfaces
+  - Centralized exercise parameters
+
+The new structure allows adding exercises by simply extending the ExerciseConfig in exercises.py without modifying core processing logic.
